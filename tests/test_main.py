@@ -28,8 +28,16 @@ class LoadConfigTests(unittest.TestCase):
             os.environ.pop("MISSKEY_KEYWORDS", None)
             os.environ.pop("MISSKEY_MEDIA_MODE", None)
 
-            main.load_dotenv(env_path)
-            config = main.load_config()
+            real_env_path = Path(__file__).resolve().parent.parent / ".env"
+            backup_path = real_env_path.with_suffix(".bak")
+            if real_env_path.exists():
+                real_env_path.replace(backup_path)
+            try:
+                main.load_dotenv(env_path)
+                config = main.load_config()
+            finally:
+                if backup_path.exists():
+                    backup_path.replace(real_env_path)
 
         self.assertEqual(config["base_url"], "https://example.test")
         self.assertEqual(config["token"], "token-123")
@@ -56,6 +64,15 @@ class LoadConfigTests(unittest.TestCase):
         self.assertFalse(main.matches_media_requirement(note_with_media, "absent"))
         self.assertTrue(main.matches_media_requirement(note_without_media, "absent"))
         self.assertTrue(main.matches_media_requirement(note_without_media, "any"))
+
+    def test_dotenv_values_override_existing_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("MISSKEY_ACCESS_TOKEN=from-dotenv\n", encoding="utf-8")
+            os.environ["MISSKEY_ACCESS_TOKEN"] = "old-value"
+            main.load_dotenv(env_path)
+
+        self.assertEqual(os.environ["MISSKEY_ACCESS_TOKEN"], "from-dotenv")
 
     def test_should_process_note_skips_renotes_and_self_posts(self) -> None:
         config = {"skip_renotes": True, "ignore_self": True, "self_user_id": "user-1"}

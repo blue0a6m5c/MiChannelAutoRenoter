@@ -21,7 +21,7 @@ def load_dotenv(path: Optional[Path] = None) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        os.environ[key] = value
 
 
 def load_config() -> Dict[str, Any]:
@@ -120,8 +120,10 @@ def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dic
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
 
+    url = f"{base_url}/api/{endpoint.lstrip('/')}"
+    print(f"[debug] calling {url} with payload={payload}")
     req = urllib.request.Request(
-        f"{base_url}/api/{endpoint.lstrip('/')}",
+        url,
         data=body,
         headers=headers,
         method="POST",
@@ -131,8 +133,11 @@ def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dic
             text = response.read().decode("utf-8")
             return json.loads(text) if text else []
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"{endpoint} failed with HTTP {exc.code}: {exc.read().decode('utf-8', 'ignore')}") from exc
+        detail = exc.read().decode("utf-8", "ignore")
+        print(f"[debug] response from {url}: {detail}")
+        raise RuntimeError(f"{endpoint} failed with HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
+        print(f"[debug] network error for {url}: {exc.reason}")
         raise RuntimeError(f"{endpoint} failed: {exc.reason}") from exc
 
 
