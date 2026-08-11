@@ -67,6 +67,25 @@ class LoadConfigTests(unittest.TestCase):
         self.assertTrue(main.matches_media_requirement(note_without_media, "absent"))
         self.assertTrue(main.matches_media_requirement(note_without_media, "any"))
 
+    def test_validate_config_requires_channel_id(self) -> None:
+        config = {
+            "base_url": "https://example.test",
+            "token": "token-123",
+            "channel_id": "",
+        }
+
+        with self.assertRaisesRegex(ValueError, "MISSKEY_CHANNEL_ID"):
+            main.validate_config(config)
+
+    def test_validate_config_accepts_required_values(self) -> None:
+        config = {
+            "base_url": "https://example.test",
+            "token": "token-123",
+            "channel_id": "channel-1",
+        }
+
+        main.validate_config(config)
+
     def test_dotenv_values_override_existing_environment(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             env_path = Path(tmpdir) / ".env"

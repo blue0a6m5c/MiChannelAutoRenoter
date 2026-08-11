@@ -33,6 +33,9 @@ python main.py --once --dry-run
 - `MISSKEY_SKIP_RENOTES`: Renote 投稿を拾わないかどうか（推奨: `true`）
 - `MISSKEY_IGNORE_SELF`: 自分の投稿を拾わないかどうか（推奨: `true`）
 - `MISSKEY_SELF_USER_ID`: 自分の Misskey ユーザー ID。`ignore_self` を有効にする場合に設定
+- `MISSKEY_LOG_LEVEL`: ログの詳細度。通常運用は `INFO`、詳細確認時は `DEBUG`
+
+`MISSKEY_CHANNEL_ID` は必須です。未設定の場合は起動時にエラーとして終了し、通常タイムラインへ誤って Renote することを防ぎます。
 
 ## 実行方法
 

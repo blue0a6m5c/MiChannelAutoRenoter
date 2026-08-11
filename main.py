@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import logging
 import os
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DEFAULT_USER_AGENT = "MiChannelAutoRenoter/1.0"
+LOGGER = logging.getLogger("michannel-autorenoter")
 
 
 def load_dotenv(path: Optional[Path] = None) -> None:
@@ -29,10 +30,6 @@ def load_dotenv(path: Optional[Path] = None) -> None:
 def load_config() -> Dict[str, Any]:
     load_dotenv()
     token = os.getenv("MISSKEY_ACCESS_TOKEN", "").strip()
-    if token:
-        print("[debug] loaded MISSKEY_ACCESS_TOKEN from environment")
-    else:
-        print("[debug] MISSKEY_ACCESS_TOKEN is empty")
     return {
         "base_url": os.getenv("MISSKEY_API_BASE_URL", "").rstrip("/"),
         "token": token,
@@ -49,8 +46,32 @@ def load_config() -> Dict[str, Any]:
         "skip_renotes": os.getenv("MISSKEY_SKIP_RENOTES", "true").strip().lower() in {"1", "true", "yes", "on"},
         "ignore_self": os.getenv("MISSKEY_IGNORE_SELF", "true").strip().lower() in {"1", "true", "yes", "on"},
         "self_user_id": os.getenv("MISSKEY_SELF_USER_ID", "").strip(),
+        "log_level": os.getenv("MISSKEY_LOG_LEVEL", "INFO").strip().upper(),
         "dry_run": False,
     }
+
+
+def configure_logging(level_name: str) -> None:
+    level = getattr(logging, level_name, None)
+    if not isinstance(level, int):
+        level = logging.INFO
+        level_name = "INFO"
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    LOGGER.debug("log level set to %s", level_name)
+
+
+def validate_config(config: Dict[str, Any]) -> None:
+    required = {
+        "MISSKEY_API_BASE_URL": config.get("base_url"),
+        "MISSKEY_ACCESS_TOKEN": config.get("token"),
+        "MISSKEY_CHANNEL_ID": config.get("channel_id"),
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        raise ValueError(f"Required configuration is missing: {', '.join(missing)}")
 
 
 def resolve_keywords(config: Dict[str, Any]) -> List[str]:
@@ -130,7 +151,7 @@ def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dic
         body = json.dumps(request_payload).encode("utf-8")
 
     url = f"{base_url}/api/{endpoint.lstrip('/')}"
-    print(f"[debug] calling {url} with payload={payload}")
+    LOGGER.debug("calling %s with payload=%s", url, payload)
     req = urllib.request.Request(
         url,
         data=body,
@@ -143,10 +164,10 @@ def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dic
             return json.loads(text) if text else []
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "ignore")
-        print(f"[debug] response from {url}: {detail}")
-        raise RuntimeError(f"{endpoint} failed with HTTP {exc.code}: {detail}") from exc
+        LOGGER.debug("response from %s: %s", url, detail)
+        raise RuntimeError(f"{endpoint} failed with HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
-        print(f"[debug] network error for {url}: {exc.reason}")
+        LOGGER.debug("network error for %s: %s", url, exc.reason)
         raise RuntimeError(f"{endpoint} failed: {exc.reason}") from exc
 
 
@@ -181,7 +202,7 @@ def fetch_notes(config: Dict[str, Any], since_id: Optional[str] = None) -> List[
             return []
         except RuntimeError as exc:
             last_error = exc
-            print(f"[warn] {endpoint} failed: {exc}")
+            LOGGER.warning("%s failed: %s", endpoint, exc)
     if last_error:
         raise last_error
     return []
@@ -216,6 +237,9 @@ def match_keywords(note: Dict[str, Any], keywords: List[str]) -> bool:
 
 
 def create_renote(config: Dict[str, Any], note_id: str) -> None:
+    if not config.get("channel_id"):
+        raise RuntimeError("MISSKEY_CHANNEL_ID is required before creating a renote")
+
     payload: Dict[str, Any] = {
         "renoteId": note_id,
         "visibility": config["visibility"],
@@ -227,10 +251,11 @@ def create_renote(config: Dict[str, Any], note_id: str) -> None:
         "noExtractEmojis": False,
     }
     if config["dry_run"]:
-        print(f"[dry-run] would renote note {note_id} into channel {config['channel_id']}")
+        LOGGER.info("[dry-run] would renote note %s into channel %s", note_id, config["channel_id"])
         return
     response = request_json(config["base_url"], config["token"], "notes/create", payload)
-    print(f"[ok] renoted note {note_id}: {response}")
+    LOGGER.info("renoted note %s", note_id)
+    LOGGER.debug("notes/create response for %s: %s", note_id, response)
 
 
 def process_once(config: Dict[str, Any]) -> None:
@@ -258,13 +283,13 @@ def process_once(config: Dict[str, Any]) -> None:
             continue
         new_notes.append(note)
 
-    print(f"[debug] fetched {len(notes)} notes from API")
-    print(f"[debug] {len(new_notes)} notes matched the filter criteria")
-    print(f"[debug] {skipped_by_state} notes were excluded by state")
-    print(f"[debug] {filtered_out} notes were filtered out by rules")
+    LOGGER.debug("fetched %s notes from API", len(notes))
+    LOGGER.debug("%s notes matched the filter criteria", len(new_notes))
+    LOGGER.debug("%s notes were excluded by state", skipped_by_state)
+    LOGGER.debug("%s notes were filtered out by rules", filtered_out)
 
     if not new_notes:
-        print("[info] no matching notes found")
+        LOGGER.debug("no matching notes found")
         return
 
     for note in new_notes:
@@ -278,7 +303,7 @@ def process_once(config: Dict[str, Any]) -> None:
     if not config.get("dry_run", False):
         save_state(state_path, seen_ids)
     else:
-        print("[debug] dry-run enabled; state was not persisted")
+        LOGGER.debug("dry-run enabled; state was not persisted")
 
 
 def parse_args() -> argparse.Namespace:
@@ -292,25 +317,28 @@ def main() -> int:
     args = parse_args()
     config = load_config()
     config["dry_run"] = args.dry_run or config["dry_run"]
+    configure_logging(config["log_level"])
 
-    if not config["base_url"] or not config["token"]:
-        print("Set MISSKEY_API_BASE_URL and MISSKEY_ACCESS_TOKEN before running.", file=sys.stderr)
+    try:
+        validate_config(config)
+    except ValueError as exc:
+        LOGGER.error("%s", exc)
         return 2
 
     if args.once:
         try:
             process_once(config)
         except Exception as exc:  # pylint: disable=broad-except
-            print(f"[error] {exc}", file=sys.stderr)
+            LOGGER.error("%s", exc)
             return 1
         return 0
 
-    print("[info] starting watch loop")
+    LOGGER.info("starting watch loop")
     while True:
         try:
             process_once(config)
         except Exception as exc:  # pylint: disable=broad-except
-            print(f"[error] {exc}", file=sys.stderr)
+            LOGGER.error("%s", exc)
         time.sleep(config["poll_interval_seconds"])
 
 
