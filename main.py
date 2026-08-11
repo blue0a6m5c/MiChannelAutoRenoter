@@ -9,6 +9,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+DEFAULT_USER_AGENT = "MiChannelAutoRenoter/1.0"
+
 
 def load_dotenv(path: Optional[Path] = None) -> None:
     env_path = path or Path(__file__).resolve().parent / ".env"
@@ -118,6 +120,7 @@ def load_state(path: Path) -> List[str]:
 
 def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     headers = {
+        "User-Agent": DEFAULT_USER_AGENT,
         "Content-Type": "application/json",
     }
     body = None

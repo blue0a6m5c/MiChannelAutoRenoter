@@ -103,7 +103,7 @@ class LoadConfigTests(unittest.TestCase):
         def fake_urlopen(request, timeout=20):
             captured["url"] = request.full_url
             captured["data"] = request.data
-            captured["headers"] = dict(request.header_items())
+            captured["headers"] = {key.lower(): value for key, value in request.header_items()}
             return FakeResponse({"ok": True})
 
         with patch("main.urllib.request.urlopen", side_effect=fake_urlopen):
@@ -112,7 +112,8 @@ class LoadConfigTests(unittest.TestCase):
         self.assertEqual(response, {"ok": True})
         self.assertEqual(captured["url"], "https://example.test/api/notes/global-timeline")
         self.assertEqual(json.loads(captured["data"].decode("utf-8")), {"i": "token-123", "limit": 3})
-        self.assertIn("Content-Type", captured["headers"])
+        self.assertEqual(captured["headers"]["user-agent"], "MiChannelAutoRenoter/1.0")
+        self.assertIn("content-type", captured["headers"])
 
 
 if __name__ == "__main__":

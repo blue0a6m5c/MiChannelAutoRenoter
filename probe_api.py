@@ -8,7 +8,7 @@ token = next(line.split('=', 1)[1].strip() for line in text.splitlines() if line
 req = urllib.request.Request(
     'https://mi.kyanos.one/api/notes/global-timeline',
     data=json.dumps({'i': token, 'limit': 3}).encode('utf-8'),
-    headers={'Content-Type': 'application/json'},
+    headers={'User-Agent': 'MiChannelAutoRenoter/1.0', 'Content-Type': 'application/json'},
     method='POST',
 )
 try:
