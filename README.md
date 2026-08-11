@@ -1,24 +1,23 @@
 # MiChannelAutoRenoter
 
-Misskey のグローバルタイムラインまたはアンテナタイムラインから、指定したキーワードやハッシュタグを含む投稿を取得し、決められたチャンネルへ Renote するための小さな自動化スクリプトです。
+Misskey のグローバルタイムラインまたはアンテナタイムラインから、指定したキーワードやハッシュタグを含む投稿を取得し、決められたチャンネルへ Renote するための自動化スクリプトです。
 
-## 使い方
+GitHub リポジトリ: https://github.com/blue0a6m5c/MiChannelAutoRenoter
 
-1. 依存関係は Python 標準ライブラリのみです。
-2. `.env.example` を参考に `.env` を作成します。
-3. 1回だけ実行する場合:
+## まずは試す
+
+依存関係は Python 標準ライブラリのみです。
 
 ```bash
+git clone https://github.com/blue0a6m5c/MiChannelAutoRenoter.git
+cd MiChannelAutoRenoter
+cp .env.example .env
 python main.py --once --dry-run
 ```
 
-4. 常時監視する場合:
-
-```bash
-python main.py
-```
-
 ## 設定項目
+
+`.env` で次の項目を設定します。
 
 - `MISSKEY_API_BASE_URL`: Misskey インスタンスの URL
 - `MISSKEY_ACCESS_TOKEN`: API トークン
@@ -32,9 +31,23 @@ python main.py
 - `MISSKEY_STATE_FILE`: 重複投稿を避けるための状態ファイル
 - `MISSKEY_MEDIA_MODE`: `any` / `required` / `absent`
 
+## 実行方法
+
+### 1回だけ実行
+
+```bash
+python main.py --once --dry-run
+```
+
+### 常時監視
+
+```bash
+python main.py
+```
+
 ## Linux サーバーでの運用
 
-はい、Linux サーバーで常時実行させるのが自然です。Ubuntu では、`systemd` を使うと起動時自動開始・再起動・ログ管理がしやすいです。
+Linux サーバーで常時実行させるのが自然です。Ubuntu では、`systemd` を使うと起動時自動開始・再起動・ログ管理がしやすいです。
 
 ### 1. Ubuntu に Python を入れる
 
@@ -47,7 +60,7 @@ sudo apt install -y python3 python3-pip git
 
 ```bash
 cd /home/your-user
-sudo git clone https://github.com/your-user/MiChannelAutoRenoter.git
+sudo git clone https://github.com/blue0a6m5c/MiChannelAutoRenoter.git
 cd MiChannelAutoRenoter
 cp .env.example .env
 ```
@@ -109,3 +122,4 @@ sudo systemctl stop michannel-autorenoter
 - まずは `--dry-run` で動作確認してください。
 - アンテナ機能を使う場合は、`MISSKEY_MODE=antenna` と `MISSKEY_ANTENNA_ID` を設定してください。
 - もし Misskey の API バージョン差異でエンドポイント名が変わっている場合は、必要に応じて [main.py](main.py) の `fetch_notes()` を調整してください。
+- 既定では `state.json` に見た投稿 ID を保存し、重複 Renote を避けます。
