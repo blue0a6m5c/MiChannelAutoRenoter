@@ -52,11 +52,27 @@ class LoadConfigTests(unittest.TestCase):
     def test_resolve_keywords_reads_external_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             keywords_path = Path(tmpdir) / "keywords.txt"
-            keywords_path.write_text("foo\n#bar\n baz \n", encoding="utf-8")
+            keywords_path.write_text("foo\n#bar\n  baz qux  \n\n", encoding="utf-8")
             config = {"keywords": ["env-word"], "keywords_file": str(keywords_path)}
             keywords = main.resolve_keywords(config)
 
-        self.assertEqual(keywords, ["env-word", "foo", "#bar", "baz"])
+        self.assertEqual(keywords, [["env-word"], ["foo"], ["#bar"], ["baz", "qux"]])
+
+    def test_match_keywords_uses_and_within_a_line(self) -> None:
+        condition = [["アイ", "ウマ娘"]]
+
+        self.assertTrue(main.match_keywords({"text": "アイが登場するウマ娘の話"}, condition))
+        self.assertFalse(main.match_keywords({"text": "アイについての話"}, condition))
+
+    def test_match_keywords_uses_or_between_lines(self) -> None:
+        conditions = [["アーモンドアイ"], ["アイ", "ウマ娘"]]
+
+        self.assertTrue(main.match_keywords({"text": "アーモンドアイのニュース"}, conditions))
+        self.assertTrue(main.match_keywords({"text": "ウマ娘でアイが登場"}, conditions))
+        self.assertFalse(main.match_keywords({"text": "アイについての話"}, conditions))
+
+    def test_match_keywords_keeps_single_keyword_compatibility(self) -> None:
+        self.assertTrue(main.match_keywords({"text": "misskeyの投稿"}, [["misskey"]]))
 
     def test_matches_media_requirement(self) -> None:
         note_with_media = {"id": "1", "files": [{"id": "file-1"}]}

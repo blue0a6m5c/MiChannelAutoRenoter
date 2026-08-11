@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 DEFAULT_USER_AGENT = "MiChannelAutoRenoter/1.0"
 LOGGER = logging.getLogger("michannel-autorenoter")
@@ -74,11 +74,11 @@ def validate_config(config: Dict[str, Any]) -> None:
         raise ValueError(f"Required configuration is missing: {', '.join(missing)}")
 
 
-def resolve_keywords(config: Dict[str, Any]) -> List[str]:
-    keywords = list(config.get("keywords", []))
+def resolve_keywords(config: Dict[str, Any]) -> List[List[str]]:
+    keyword_conditions = [[keyword] for keyword in config.get("keywords", []) if keyword.strip()]
     keywords_file = config.get("keywords_file")
     if not keywords_file:
-        return keywords
+        return keyword_conditions
 
     path = Path(keywords_file)
     if not path.is_absolute():
@@ -90,8 +90,10 @@ def resolve_keywords(config: Dict[str, Any]) -> List[str]:
                 continue
             if value.startswith("# ") or value.startswith("//"):
                 continue
-            keywords.append(value)
-    return keywords
+            terms = [term for term in value.split(" ") if term]
+            if terms:
+                keyword_conditions.append(terms)
+    return keyword_conditions
 
 
 def matches_media_requirement(note: Dict[str, Any], media_mode: str) -> bool:
@@ -208,8 +210,8 @@ def fetch_notes(config: Dict[str, Any], since_id: Optional[str] = None) -> List[
     return []
 
 
-def match_keywords(note: Dict[str, Any], keywords: List[str]) -> bool:
-    if not keywords:
+def match_keywords(note: Dict[str, Any], keyword_conditions: List[Union[str, List[str]]]) -> bool:
+    if not keyword_conditions:
         return True
 
     text_parts: List[str] = []
@@ -223,15 +225,21 @@ def match_keywords(note: Dict[str, Any], keywords: List[str]) -> bool:
         text_parts.append(" ".join(str(tag) for tag in tags))
 
     haystack = " ".join(text_parts).lower()
-    for keyword in keywords:
-        normalized = keyword.lower().strip()
+    normalized_tags = {str(item).lower() for item in tags if isinstance(item, str)}
+
+    def matches_term(term: str) -> bool:
+        normalized = term.lower().strip()
         if not normalized:
-            continue
+            return False
         if normalized.startswith("#"):
             tag = normalized[1:]
-            if tag in {str(item).lower() for item in tags if isinstance(item, str)}:
-                return True
-        elif normalized in haystack:
+            return bool(tag) and tag in normalized_tags
+        return normalized in haystack
+
+    for condition in keyword_conditions:
+        terms = [condition] if isinstance(condition, str) else condition
+        terms = [term for term in terms if term.strip()]
+        if terms and all(matches_term(term) for term in terms):
             return True
     return False
 
