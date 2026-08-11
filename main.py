@@ -164,8 +164,8 @@ def fetch_notes(config: Dict[str, Any], since_id: Optional[str] = None) -> List[
         if not config["antenna_id"]:
             raise RuntimeError("MISSKEY_ANTENNA_ID is required when MISSKEY_MODE=antenna")
         candidates = [
-            ("notes/antenna-timeline", {**payload, "antennaId": config["antenna_id"]}),
             ("antennas/notes", {**payload, "antennaId": config["antenna_id"]}),
+            ("notes/antenna-timeline", {**payload, "antennaId": config["antenna_id"]}),
         ]
     else:
         candidates = [("notes/global-timeline", payload)]
@@ -240,11 +240,28 @@ def process_once(config: Dict[str, Any]) -> None:
     keywords = resolve_keywords(config)
 
     new_notes = []
+    skipped_by_state = 0
+    filtered_out = 0
     for note in notes:
-        if not should_process_note(note, config, seen_ids):
+        note_id = note.get("id")
+        if note_id and note_id in seen_ids:
+            skipped_by_state += 1
             continue
-        if matches_media_requirement(note, config.get("media_mode", "any")) and match_keywords(note, keywords):
-            new_notes.append(note)
+        if not should_process_note(note, config, seen_ids):
+            filtered_out += 1
+            continue
+        if not matches_media_requirement(note, config.get("media_mode", "any")):
+            filtered_out += 1
+            continue
+        if not match_keywords(note, keywords):
+            filtered_out += 1
+            continue
+        new_notes.append(note)
+
+    print(f"[debug] fetched {len(notes)} notes from API")
+    print(f"[debug] {len(new_notes)} notes matched the filter criteria")
+    print(f"[debug] {skipped_by_state} notes were excluded by state")
+    print(f"[debug] {filtered_out} notes were filtered out by rules")
 
     if not new_notes:
         print("[info] no matching notes found")
@@ -255,9 +272,13 @@ def process_once(config: Dict[str, Any]) -> None:
         if not note_id:
             continue
         create_renote(config, note_id)
-        seen_ids.append(note_id)
+        if not config.get("dry_run", False):
+            seen_ids.append(note_id)
 
-    save_state(state_path, seen_ids)
+    if not config.get("dry_run", False):
+        save_state(state_path, seen_ids)
+    else:
+        print("[debug] dry-run enabled; state was not persisted")
 
 
 def parse_args() -> argparse.Namespace:

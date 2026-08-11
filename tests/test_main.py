@@ -115,6 +115,49 @@ class LoadConfigTests(unittest.TestCase):
         self.assertEqual(captured["headers"]["user-agent"], "MiChannelAutoRenoter/1.0")
         self.assertIn("content-type", captured["headers"])
 
+    def test_fetch_notes_prefers_antennas_notes_for_antenna_mode(self) -> None:
+        config = {
+            "base_url": "https://example.test",
+            "token": "token-123",
+            "mode": "antenna",
+            "antenna_id": "antenna-1",
+            "fetch_limit": 20,
+        }
+        calls = []
+
+        def fake_request_json(base_url, token, endpoint, payload=None):
+            calls.append((endpoint, payload))
+            if endpoint == "antennas/notes":
+                return [{"id": "note-1"}]
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+        with patch("main.request_json", side_effect=fake_request_json):
+            notes = main.fetch_notes(config)
+
+        self.assertEqual(notes, [{"id": "note-1"}])
+        self.assertEqual(calls[0][0], "antennas/notes")
+
+    def test_process_once_dry_run_does_not_persist_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_path = Path(tmpdir) / "state.json"
+            config = {
+                "state_file": str(state_path),
+                "base_url": "https://example.test",
+                "token": "token-123",
+                "mode": "global",
+                "channel_id": "channel-1",
+                "visibility": "public",
+                "dry_run": True,
+                "skip_renotes": True,
+                "ignore_self": False,
+                "media_mode": "any",
+            }
+
+            with patch("main.fetch_notes", return_value=[{"id": "note-1", "text": "hello"}]), patch("main.resolve_keywords", return_value=["hello"]):
+                main.process_once(config)
+
+            self.assertFalse(state_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
