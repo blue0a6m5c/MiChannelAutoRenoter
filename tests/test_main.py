@@ -1,7 +1,9 @@
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import main
 
@@ -81,6 +83,36 @@ class LoadConfigTests(unittest.TestCase):
         self.assertFalse(main.should_process_note({"id": "2", "renote": {"id": "orig"}}, config, []))
         self.assertFalse(main.should_process_note({"id": "3", "user": {"id": "user-1"}}, config, []))
         self.assertTrue(main.should_process_note({"id": "4", "text": "hello"}, config, []))
+
+    def test_request_json_includes_token_in_payload(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload: dict) -> None:
+                self._payload = payload
+
+            def read(self) -> bytes:
+                return json.dumps(self._payload).encode("utf-8")
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+                return None
+
+        captured = {}
+
+        def fake_urlopen(request, timeout=20):
+            captured["url"] = request.full_url
+            captured["data"] = request.data
+            captured["headers"] = dict(request.header_items())
+            return FakeResponse({"ok": True})
+
+        with patch("main.urllib.request.urlopen", side_effect=fake_urlopen):
+            response = main.request_json("https://example.test", "token-123", "notes/global-timeline", {"limit": 3})
+
+        self.assertEqual(response, {"ok": True})
+        self.assertEqual(captured["url"], "https://example.test/api/notes/global-timeline")
+        self.assertEqual(json.loads(captured["data"].decode("utf-8")), {"i": "token-123", "limit": 3})
+        self.assertIn("Content-Type", captured["headers"])
 
 
 if __name__ == "__main__":

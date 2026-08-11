@@ -26,9 +26,14 @@ def load_dotenv(path: Optional[Path] = None) -> None:
 
 def load_config() -> Dict[str, Any]:
     load_dotenv()
+    token = os.getenv("MISSKEY_ACCESS_TOKEN", "").strip()
+    if token:
+        print("[debug] loaded MISSKEY_ACCESS_TOKEN from environment")
+    else:
+        print("[debug] MISSKEY_ACCESS_TOKEN is empty")
     return {
         "base_url": os.getenv("MISSKEY_API_BASE_URL", "").rstrip("/"),
-        "token": os.getenv("MISSKEY_ACCESS_TOKEN", "").strip(),
+        "token": token,
         "channel_id": os.getenv("MISSKEY_CHANNEL_ID", "").strip(),
         "mode": os.getenv("MISSKEY_MODE", "global").strip().lower(),
         "antenna_id": os.getenv("MISSKEY_ANTENNA_ID", "").strip(),
@@ -113,12 +118,13 @@ def load_state(path: Path) -> List[str]:
 
 def request_json(base_url: str, token: str, endpoint: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     headers = {
-        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
     body = None
     if payload is not None:
-        body = json.dumps(payload).encode("utf-8")
+        request_payload = dict(payload)
+        request_payload.setdefault("i", token)
+        body = json.dumps(request_payload).encode("utf-8")
 
     url = f"{base_url}/api/{endpoint.lstrip('/')}"
     print(f"[debug] calling {url} with payload={payload}")
