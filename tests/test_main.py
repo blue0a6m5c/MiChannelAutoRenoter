@@ -57,6 +57,14 @@ class LoadConfigTests(unittest.TestCase):
         self.assertTrue(main.matches_media_requirement(note_without_media, "absent"))
         self.assertTrue(main.matches_media_requirement(note_without_media, "any"))
 
+    def test_should_process_note_skips_renotes_and_self_posts(self) -> None:
+        config = {"skip_renotes": True, "ignore_self": True, "self_user_id": "user-1"}
+
+        self.assertFalse(main.should_process_note({"id": "1", "renoteId": "orig"}, config, []))
+        self.assertFalse(main.should_process_note({"id": "2", "renote": {"id": "orig"}}, config, []))
+        self.assertFalse(main.should_process_note({"id": "3", "user": {"id": "user-1"}}, config, []))
+        self.assertTrue(main.should_process_note({"id": "4", "text": "hello"}, config, []))
+
 
 if __name__ == "__main__":
     unittest.main()

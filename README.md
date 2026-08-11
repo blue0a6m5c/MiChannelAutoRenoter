@@ -30,6 +30,9 @@ python main.py --once --dry-run
 - `MISSKEY_POLL_INTERVAL_SECONDS`: ポーリング間隔
 - `MISSKEY_STATE_FILE`: 重複投稿を避けるための状態ファイル
 - `MISSKEY_MEDIA_MODE`: `any` / `required` / `absent`
+- `MISSKEY_SKIP_RENOTES`: Renote 投稿を拾わないかどうか（推奨: `true`）
+- `MISSKEY_IGNORE_SELF`: 自分の投稿を拾わないかどうか（推奨: `true`）
+- `MISSKEY_SELF_USER_ID`: 自分の Misskey ユーザー ID。`ignore_self` を有効にする場合に設定
 
 ## 実行方法
 

@@ -39,6 +39,9 @@ def load_config() -> Dict[str, Any]:
         "state_file": os.getenv("MISSKEY_STATE_FILE", "state.json"),
         "visibility": os.getenv("MISSKEY_VISIBILITY", "public"),
         "media_mode": os.getenv("MISSKEY_MEDIA_MODE", "any").strip().lower(),
+        "skip_renotes": os.getenv("MISSKEY_SKIP_RENOTES", "true").strip().lower() in {"1", "true", "yes", "on"},
+        "ignore_self": os.getenv("MISSKEY_IGNORE_SELF", "true").strip().lower() in {"1", "true", "yes", "on"},
+        "self_user_id": os.getenv("MISSKEY_SELF_USER_ID", "").strip(),
         "dry_run": False,
     }
 
@@ -73,6 +76,24 @@ def matches_media_requirement(note: Dict[str, Any], media_mode: str) -> bool:
         return has_media
     if media_mode == "absent":
         return not has_media
+    return True
+
+
+def should_process_note(note: Dict[str, Any], config: Dict[str, Any], seen_ids: List[str]) -> bool:
+    note_id = note.get("id")
+    if not note_id or note_id in seen_ids:
+        return False
+
+    if config.get("skip_renotes", True):
+        if note.get("renoteId") or note.get("renote"):
+            return False
+
+    if config.get("ignore_self", True):
+        self_user_id = config.get("self_user_id")
+        note_user = note.get("user") or {}
+        if self_user_id and isinstance(note_user, dict) and note_user.get("id") == self_user_id:
+            return False
+
     return True
 
 
@@ -206,8 +227,7 @@ def process_once(config: Dict[str, Any]) -> None:
 
     new_notes = []
     for note in notes:
-        note_id = note.get("id")
-        if not note_id or note_id in seen_ids:
+        if not should_process_note(note, config, seen_ids):
             continue
         if matches_media_requirement(note, config.get("media_mode", "any")) and match_keywords(note, keywords):
             new_notes.append(note)
