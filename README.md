@@ -148,3 +148,7 @@ sudo systemctl stop michannel-autorenoter
 - アンテナ機能を使う場合は、`MISSKEY_MODE=antenna` と `MISSKEY_ANTENNA_ID` を設定してください。
 - もし Misskey の API バージョン差異でエンドポイント名が変わっている場合は、必要に応じて [main.py](main.py) の `fetch_notes()` を調整してください。
 - 既定では `state.json` に見た投稿 ID を保存し、重複 Renote を避けます。
+
+## ライセンス
+
+このプロジェクトは [MIT License](LICENSE) の下で公開されています。
